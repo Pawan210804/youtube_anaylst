@@ -486,8 +486,10 @@
   async function fetchData(){
     const res = await fetch("dashboard_data.json?t="+Date.now());
     if(!res.ok) throw new Error("HTTP "+res.status);
-    const fresh = res.headers.get('Last-Modified');
-    const data  = await res.json();
+    const text = await res.text();
+    const data = JSON.parse(text);
+    // Use total_views as a lightweight fingerprint — changes whenever pipeline fetches new data
+    const fresh = String(data.total_views) + String(data.total_videos);
     return { data, fresh };
   }
 

@@ -67,6 +67,14 @@ class DashboardHandler(http.server.SimpleHTTPRequestHandler):
 
         super().do_GET()
 
+    def end_headers(self):
+        # Prevent browser from caching dashboard_data.json so stale data is never shown
+        if "dashboard_data.json" in self.path:
+            self.send_header("Cache-Control", "no-cache, no-store, must-revalidate")
+            self.send_header("Pragma", "no-cache")
+            self.send_header("Expires", "0")
+        super().end_headers()
+
     def log_message(self, format, *args):
         pass  # silence default access log
 
