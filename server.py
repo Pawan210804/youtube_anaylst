@@ -203,12 +203,16 @@ class DashboardHandler(http.server.SimpleHTTPRequestHandler):
 if __name__ == "__main__":
     os.chdir(DASHBOARD_DIR)
 
-    # Auto-run pipeline once on startup so Railway always has fresh data on deploy
-    logging.info("Running pipeline on startup...")
-    start_pipeline()
-
+    # Start server FIRST so Railway health check passes immediately
     logging.info(f"Server on port {PORT}")
     with http.server.HTTPServer(("", PORT), DashboardHandler) as httpd:
+        # Trigger pipeline in background AFTER server is bound and responding
+        def delayed_pipeline():
+            import time
+            time.sleep(2)
+            logging.info("Running pipeline on startup...")
+            start_pipeline()
+        threading.Thread(target=delayed_pipeline, daemon=True).start()
         try:
             httpd.serve_forever()
         except KeyboardInterrupt:
