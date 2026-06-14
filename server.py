@@ -5,9 +5,9 @@ import json
 import threading
 import logging
 import urllib.parse
-from datetime import datetime
+from datetime import datetime, timezone
 
-PORT          = int(os.environ.get("PORT", 8000))
+PORT          = int(os.environ.get("PORT", 8080))
 REFRESH_TOKEN = os.environ.get("REFRESH_TOKEN", "")   # set this in Railway env vars
 PROJECT_ROOT  = os.path.dirname(os.path.abspath(__file__))
 DASHBOARD_DIR = os.path.join(PROJECT_ROOT, "dashboard")
@@ -96,7 +96,7 @@ def run_pipeline():
             "total_views"    : int(df["views"].sum()),
             "avg_likes"      : int(df["likes"].mean()),
             "avg_engagement" : round(float(df["engagement_rate"].mean()), 2),
-            "last_updated"   : datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC"),
+            "last_updated"   : datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),
 
             "top10_titles"   : [t[:40]+"..." if len(t)>40 else t for t in top10["title"].tolist()],
             "top10_views"    : top10["views"].tolist(),
@@ -217,7 +217,7 @@ if __name__ == "__main__":
 
     # Start server FIRST so Railway health check passes immediately
     logging.info(f"Server on port {PORT}")
-    with http.server.HTTPServer(("", PORT), DashboardHandler) as httpd:
+    with http.server.HTTPServer(("0.0.0.0", PORT), DashboardHandler) as httpd:
         # Trigger pipeline in background AFTER server is bound and responding
         def delayed_pipeline():
             import time
