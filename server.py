@@ -213,19 +213,18 @@ class DashboardHandler(http.server.SimpleHTTPRequestHandler):
 
 
 if __name__ == "__main__":
-    # No os.chdir() — translate_path anchors all file serving to DASHBOARD_DIR explicitly
+    http.server.HTTPServer.allow_reuse_address = True
+    server = http.server.HTTPServer(("0.0.0.0", PORT), DashboardHandler)
+    logging.info(f"Server bound and listening on port {PORT}")  # proves bind succeeded
 
-    # Start server FIRST so Railway health check passes immediately
-    logging.info(f"Server on port {PORT}")
-    with http.server.HTTPServer(("0.0.0.0", PORT), DashboardHandler) as httpd:
-        # Trigger pipeline in background AFTER server is bound and responding
-        def delayed_pipeline():
-            import time
-            time.sleep(2)
-            logging.info("Running pipeline on startup...")
-            start_pipeline()
-        threading.Thread(target=delayed_pipeline, daemon=True).start()
-        try:
-            httpd.serve_forever()
-        except KeyboardInterrupt:
-            print("\nStopped.")
+    def delayed_pipeline():
+        import time
+        time.sleep(5)  # give Railway more time to confirm health check
+        logging.info("Running pipeline on startup...")
+        start_pipeline()
+
+    threading.Thread(target=delayed_pipeline, daemon=True).start()
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        print("\nStopped.")
