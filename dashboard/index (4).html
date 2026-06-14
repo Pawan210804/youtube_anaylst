@@ -1,0 +1,580 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>YouTube Analytics Dashboard</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/ScrollTrigger.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;900&family=Space+Grotesk:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root{--bg:#07080f;--surface:rgba(255,255,255,0.03);--border:rgba(255,255,255,0.07);--text:#ffffff;--muted:#555;--accent:#ff0000;--green:#00c896;}
+    .light{--bg:#f0f2f5;--surface:rgba(255,255,255,0.9);--border:rgba(0,0,0,0.08);--text:#111;--muted:#888;--accent:#cc0000;--green:#00a87a;}
+    *{margin:0;padding:0;box-sizing:border-box;}
+    body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);overflow-x:hidden;transition:background 0.4s,color 0.4s;}
+
+    /* ── Loading overlay ── */
+    #loading-overlay{position:fixed;inset:0;background:#07080f;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:9999;transition:opacity 0.6s ease;}
+    #loading-overlay.hidden{opacity:0;pointer-events:none;}
+    .loader-icon{width:64px;height:64px;background:#ff0000;border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:2rem;margin-bottom:24px;animation:pulseL 1.2s ease-in-out infinite;}
+    @keyframes pulseL{0%,100%{box-shadow:0 0 30px rgba(255,0,0,0.4);transform:scale(1);}50%{box-shadow:0 0 60px rgba(255,0,0,0.8);transform:scale(1.07);}}
+    .loader-text{font-family:'Space Grotesk',sans-serif;font-size:0.9rem;color:#555;letter-spacing:0.1em;margin-bottom:20px;}
+    .loader-bar{width:220px;height:3px;background:rgba(255,255,255,0.06);border-radius:10px;overflow:hidden;}
+    .loader-bar-fill{height:100%;width:0;background:linear-gradient(90deg,#ff0000,#ff6b6b);border-radius:10px;animation:loadFill 2s ease forwards;}
+    @keyframes loadFill{to{width:100%;}}
+    .loader-step{font-size:0.72rem;color:#333;margin-top:14px;letter-spacing:0.08em;}
+
+    /* ── Background ── */
+    .bg-grid{position:fixed;inset:0;background-image:linear-gradient(rgba(255,0,0,0.03) 1px,transparent 1px),linear-gradient(90deg,rgba(255,0,0,0.03) 1px,transparent 1px);background-size:40px 40px;pointer-events:none;z-index:0;}
+    .glow-red{position:fixed;width:600px;height:600px;border-radius:50%;background:radial-gradient(circle,rgba(255,0,0,0.07) 0%,transparent 70%);top:-200px;left:-100px;pointer-events:none;z-index:0;animation:floatGlow 8s ease-in-out infinite;}
+    .glow-blue{position:fixed;width:500px;height:500px;border-radius:50%;background:radial-gradient(circle,rgba(46,117,182,0.07) 0%,transparent 70%);bottom:-100px;right:-100px;pointer-events:none;z-index:0;animation:floatGlow 10s ease-in-out infinite reverse;}
+    @keyframes floatGlow{0%,100%{transform:translate(0,0)}50%{transform:translate(30px,30px)}}
+    .content{position:relative;z-index:1;}
+
+    /* ── Header ── */
+    .header{background:rgba(7,8,15,0.85);backdrop-filter:blur(20px);border-bottom:1px solid var(--border);padding:14px 32px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;transition:background 0.4s;}
+    .light .header{background:rgba(240,242,245,0.92);}
+    .logo{display:flex;align-items:center;gap:10px;font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:1.1rem;color:var(--text);}
+    .logo-icon{width:34px;height:34px;background:#ff0000;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:0.9rem;animation:pulse 2s ease-in-out infinite;}
+    @keyframes pulse{0%,100%{box-shadow:0 0 20px rgba(255,0,0,0.4)}50%{box-shadow:0 0 40px rgba(255,0,0,0.7)}}
+    .live-badge{background:rgba(255,0,0,0.12);border:1px solid rgba(255,0,0,0.25);color:#ff6666;font-size:0.65rem;font-weight:700;padding:4px 10px;border-radius:20px;display:flex;align-items:center;gap:6px;}
+    .live-dot{width:6px;height:6px;background:#ff0000;border-radius:50%;animation:blink 1.2s ease-in-out infinite;}
+    @keyframes blink{0%,100%{opacity:1}50%{opacity:0.2}}
+    .icon-btn{background:var(--surface);border:1px solid var(--border);color:var(--text);width:36px;height:36px;border-radius:10px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:0.95rem;transition:all 0.2s;}
+    .icon-btn:hover{border-color:var(--accent);transform:scale(1.05);}
+
+    /* ── Update bar ── */
+    #update-bar{background:rgba(0,200,150,0.04);border-bottom:1px solid rgba(0,200,150,0.1);padding:7px 32px;display:flex;align-items:center;justify-content:space-between;font-size:0.73rem;color:var(--muted);}
+    #update-bar span{color:var(--green);font-weight:600;}
+    #hard-refresh{background:rgba(255,0,0,0.08);border:1px solid rgba(255,0,0,0.18);color:#ff6666;font-size:0.68rem;font-weight:700;padding:4px 12px;border-radius:20px;cursor:pointer;letter-spacing:0.05em;transition:background 0.2s;}
+    #hard-refresh:hover{background:rgba(255,0,0,0.18);}
+
+    /* ── Hero ── */
+    .hero{padding:50px 32px 30px;text-align:center;}
+    .hero-eyebrow{font-size:0.7rem;font-weight:700;letter-spacing:0.15em;color:#ff4444;text-transform:uppercase;margin-bottom:14px;opacity:0;}
+    .hero-title{font-family:'Space Grotesk',sans-serif;font-size:clamp(2rem,5vw,4rem);font-weight:700;line-height:1.1;margin-bottom:14px;opacity:0;}
+    .hero-title span{background:linear-gradient(135deg,#ff0000,#ff6b6b,#ff0000);background-size:200% auto;-webkit-background-clip:text;-webkit-text-fill-color:transparent;animation:shimmer 3s linear infinite;}
+    @keyframes shimmer{0%{background-position:0% center}100%{background-position:200% center}}
+    .hero-sub{font-size:0.95rem;color:var(--muted);opacity:0;}
+
+    /* ── Controls ── */
+    .controls{padding:0 32px 24px;display:flex;gap:12px;flex-wrap:wrap;align-items:center;}
+    .search-wrap{position:relative;flex:1;min-width:200px;}
+    .search-icon{position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--muted);pointer-events:none;}
+    .search-box{width:100%;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:10px 16px 10px 38px;color:var(--text);font-size:0.85rem;font-family:'Inter',sans-serif;outline:none;transition:border-color 0.2s;}
+    .search-box:focus{border-color:var(--accent);}
+    .filter-select{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:10px 14px;color:var(--text);font-size:0.85rem;font-family:'Inter',sans-serif;outline:none;cursor:pointer;}
+    .export-btn{background:linear-gradient(135deg,#ff0000,#cc0000);border:none;border-radius:12px;padding:10px 20px;color:#fff;font-size:0.82rem;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:8px;transition:all 0.2s;font-family:'Inter',sans-serif;}
+    .export-btn:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(255,0,0,0.3);}
+    .refresh-btn{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:10px 16px;color:var(--text);font-size:0.82rem;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:8px;transition:all 0.2s;font-family:'Inter',sans-serif;}
+    .refresh-btn:hover{border-color:var(--green);color:var(--green);}
+    @keyframes spin{to{transform:rotate(360deg)}}
+    .spin{display:inline-block;animation:spin 1s linear infinite;}
+
+    /* ── KPI ── */
+    .kpi-section{padding:0 32px 32px;}
+    .kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;}
+    .kpi-card{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:22px;position:relative;overflow:hidden;opacity:0;transform:translateY(30px);transition:border-color 0.3s,transform 0.3s,box-shadow 0.3s;cursor:default;}
+    .kpi-card:hover{border-color:rgba(255,0,0,0.35);transform:translateY(-4px) !important;box-shadow:0 16px 40px rgba(0,0,0,0.3);}
+    .kpi-card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,#ff0000,#ff6b6b);opacity:0;transition:opacity 0.3s;}
+    .kpi-card:hover::before{opacity:1;}
+    .kpi-icon{font-size:1.4rem;margin-bottom:10px;}
+    .kpi-label{font-size:0.65rem;font-weight:700;letter-spacing:0.1em;color:var(--muted);text-transform:uppercase;margin-bottom:6px;}
+    .kpi-value{font-family:'Space Grotesk',sans-serif;font-size:1.9rem;font-weight:700;color:var(--text);line-height:1;}
+    .kpi-change{font-size:0.72rem;color:var(--green);margin-top:6px;font-weight:500;}
+
+    /* ── Top video ── */
+    .top-video-section{padding:0 32px 32px;}
+    .top-video-card{background:var(--surface);border:1px solid rgba(255,0,0,0.2);border-radius:20px;padding:24px;display:flex;gap:24px;align-items:center;opacity:0;transform:translateY(20px);cursor:pointer;transition:all 0.3s;position:relative;overflow:hidden;}
+    .top-video-card::before{content:'';position:absolute;inset:0;background:linear-gradient(135deg,rgba(255,0,0,0.05),transparent);pointer-events:none;}
+    .top-video-card:hover{border-color:rgba(255,0,0,0.5);transform:translateY(-3px);box-shadow:0 20px 60px rgba(255,0,0,0.12);}
+    .top-video-thumb{width:140px;height:80px;border-radius:10px;background:linear-gradient(135deg,#1a0000,#330000);display:flex;align-items:center;justify-content:center;font-size:2rem;flex-shrink:0;border:2px solid rgba(255,0,0,0.3);}
+    .top-video-info{flex:1;}
+    .top-badge{font-size:0.65rem;font-weight:700;letter-spacing:0.1em;color:#ff4444;text-transform:uppercase;margin-bottom:6px;}
+    .top-video-title{font-family:'Space Grotesk',sans-serif;font-size:1.1rem;font-weight:600;margin-bottom:10px;color:var(--text);}
+    .top-video-stats{display:flex;gap:20px;}
+    .top-stat{font-size:0.8rem;color:var(--muted);}
+    .top-stat strong{color:var(--text);font-size:0.95rem;display:block;}
+    .open-btn{background:rgba(255,0,0,0.1);border:1px solid rgba(255,0,0,0.3);color:#ff4444;padding:10px 20px;border-radius:10px;font-size:0.8rem;font-weight:600;cursor:pointer;transition:all 0.2s;white-space:nowrap;font-family:'Inter',sans-serif;}
+    .open-btn:hover{background:rgba(255,0,0,0.2);}
+
+    /* ── Sentiment ── */
+    .sentiment-section{padding:0 32px 32px;}
+    .sentiment-card{background:var(--surface);border:1px solid var(--border);border-radius:20px;padding:24px;opacity:0;}
+    .sentiment-title{font-family:'Space Grotesk',sans-serif;font-size:0.9rem;font-weight:600;margin-bottom:20px;color:var(--text);}
+    .sentiment-bars{display:flex;flex-direction:column;gap:14px;}
+    .sentiment-row{display:flex;align-items:center;gap:14px;}
+    .sentiment-label{font-size:0.78rem;font-weight:600;width:80px;color:var(--muted);}
+    .sentiment-bar-wrap{flex:1;background:rgba(255,255,255,0.05);border-radius:20px;height:10px;overflow:hidden;}
+    .sentiment-bar{height:100%;border-radius:20px;width:0%;transition:width 1.5s ease;}
+    .bar-positive{background:linear-gradient(90deg,#00c896,#00e6b0);}
+    .bar-neutral{background:linear-gradient(90deg,#f5a623,#ffc45c);}
+    .bar-negative{background:linear-gradient(90deg,#ff4444,#ff6b6b);}
+    .sentiment-pct{font-size:0.8rem;font-weight:700;width:36px;text-align:right;color:var(--text);}
+
+    /* ── Table ── */
+    .table-section{padding:0 32px 32px;}
+    .table-wrap{background:var(--surface);border:1px solid var(--border);border-radius:20px;overflow:hidden;opacity:0;}
+    .table-header{padding:20px 24px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border);}
+    .table-title{font-family:'Space Grotesk',sans-serif;font-size:0.9rem;font-weight:600;color:var(--text);}
+    .table-count{font-size:0.75rem;color:var(--muted);}
+    table{width:100%;border-collapse:collapse;}
+    th{padding:12px 16px;text-align:left;font-size:0.65rem;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:var(--muted);border-bottom:1px solid var(--border);cursor:pointer;user-select:none;white-space:nowrap;}
+    th:hover{color:var(--text);}
+    td{padding:12px 16px;font-size:0.82rem;border-bottom:1px solid rgba(255,255,255,0.03);color:var(--text);}
+    tr:last-child td{border-bottom:none;}
+    tr:hover td{background:rgba(255,255,255,0.02);}
+    .rank-badge{background:rgba(255,0,0,0.1);color:#ff6666;font-size:0.7rem;font-weight:700;padding:3px 8px;border-radius:6px;}
+    .eng-bar{display:flex;align-items:center;gap:8px;}
+    .eng-mini{height:4px;border-radius:2px;background:linear-gradient(90deg,#00c896,#00e6b0);min-width:4px;}
+    .no-results{padding:40px;text-align:center;color:var(--muted);font-size:0.9rem;}
+
+    /* ── Charts ── */
+    .charts-section{padding:0 32px 32px;}
+    .section-label{font-size:0.65rem;font-weight:700;letter-spacing:0.12em;color:var(--muted);text-transform:uppercase;margin-bottom:16px;opacity:0;}
+    .charts-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:18px;}
+    .chart-card{background:var(--surface);border:1px solid var(--border);border-radius:20px;padding:24px;opacity:0;transform:translateY(40px);transition:border-color 0.3s,box-shadow 0.3s;}
+    .chart-card:hover{border-color:rgba(255,255,255,0.12);box-shadow:0 20px 60px rgba(0,0,0,0.3);}
+    .chart-card.full{grid-column:span 2;}
+    .chart-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;}
+    .chart-title{font-family:'Space Grotesk',sans-serif;font-size:0.9rem;font-weight:600;color:var(--text);}
+    .chart-badge{font-size:0.6rem;font-weight:700;padding:3px 9px;border-radius:20px;background:rgba(255,0,0,0.1);color:#ff6666;border:1px solid rgba(255,0,0,0.2);}
+
+    /* ── Toast ── */
+    .toast{position:fixed;bottom:24px;right:24px;background:#1a1a2e;border:1px solid rgba(255,255,255,0.1);color:#fff;padding:14px 20px;border-radius:12px;font-size:0.82rem;font-weight:500;z-index:9998;transform:translateY(80px);opacity:0;transition:all 0.35s cubic-bezier(0.34,1.56,0.64,1);}
+    .toast.show{transform:translateY(0);opacity:1;}
+
+    footer{text-align:center;padding:28px;border-top:1px solid var(--border);color:var(--muted);font-size:0.75rem;}
+    footer span{color:#444;}
+    ::-webkit-scrollbar{width:4px;}
+    ::-webkit-scrollbar-track{background:var(--bg);}
+    ::-webkit-scrollbar-thumb{background:#ff0000;border-radius:2px;}
+
+    @media(max-width:768px){
+      .kpi-grid{grid-template-columns:repeat(2,1fr);}
+      .charts-grid{grid-template-columns:1fr;}
+      .chart-card.full{grid-column:span 1;}
+      .top-video-card{flex-direction:column;}
+      .hero,.kpi-section,.charts-section,.controls,.top-video-section,.sentiment-section,.table-section{padding-left:16px;padding-right:16px;}
+      .header{padding:12px 16px;}
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Slim top banner shown while background pipeline runs -->
+  <div id="update-banner" style="display:none;position:fixed;top:0;left:0;right:0;z-index:9999;background:linear-gradient(90deg,#ff0000,#cc0000);color:#fff;font-size:0.72rem;font-weight:600;letter-spacing:0.08em;padding:6px 16px;display:flex;align-items:center;gap:10px;">
+    <span style="display:inline-block;animation:spin 1s linear infinite">↻</span>
+    <span id="banner-text">Fetching fresh YouTube data in background...</span>
+    <span style="margin-left:auto;opacity:0.7">Dashboard will auto-refresh when ready</span>
+  </div>
+
+  <div class="bg-grid"></div>
+  <div class="glow-red"></div>
+  <div class="glow-blue"></div>
+  <div class="toast" id="toast"></div>
+
+  <div class="content">
+
+    <!-- Header -->
+    <header class="header">
+      <div class="logo"><div class="logo-icon">▶</div><span>YT Analytics</span></div>
+      <div style="display:flex;align-items:center;gap:12px;">
+        <span style="font-size:0.78rem;color:var(--muted);">India Trending</span>
+        <div class="live-badge"><div class="live-dot"></div>LIVE DATA</div>
+        <button class="icon-btn" onclick="toggleTheme()" id="themeBtn">🌙</button>
+      </div>
+    </header>
+
+    <!-- Update bar -->
+    <div id="update-bar">
+      <div>Last updated: <span id="last-updated">—</span></div>
+      <button id="hard-refresh" onclick="location.reload()">↻ REFRESH DATA</button>
+    </div>
+
+    <!-- Hero -->
+    <section class="hero">
+      <div class="hero-eyebrow">YouTube Data API v3 — Real Time Analysis</div>
+      <h1 class="hero-title">India's Trending<br><span>YouTube Dashboard</span></h1>
+      <p class="hero-sub" id="hero-sub">Loading fresh data...</p>
+    </section>
+
+    <!-- Controls -->
+    <section class="controls">
+      <div class="search-wrap">
+        <span class="search-icon">🔍</span>
+        <input class="search-box" id="searchBox" type="text" placeholder="Search videos, channels..." oninput="filterTable()">
+      </div>
+      <select class="filter-select" id="sortSelect" onchange="filterTable()">
+        <option value="views">Sort by Views</option>
+        <option value="likes">Sort by Likes</option>
+        <option value="comments">Sort by Comments</option>
+        <option value="engagement_rate">Sort by Engagement</option>
+      </select>
+      <select class="filter-select" id="dayFilter" onchange="filterTable()">
+        <option value="">All Days</option>
+        <option>Monday</option><option>Tuesday</option><option>Wednesday</option>
+        <option>Thursday</option><option>Friday</option><option>Saturday</option><option>Sunday</option>
+      </select>
+      <button class="refresh-btn" onclick="softRefresh()"><span id="refreshIcon">🔄</span> Refresh</button>
+      <button class="export-btn" onclick="exportCSV()">⬇ Export CSV</button>
+    </section>
+
+    <!-- KPI Cards -->
+    <section class="kpi-section">
+      <div class="kpi-grid">
+        <div class="kpi-card"><div class="kpi-icon">🎬</div><div class="kpi-label">Total Videos</div><div class="kpi-value" id="kpi-videos">—</div><div class="kpi-change">↑ Trending today</div></div>
+        <div class="kpi-card"><div class="kpi-icon">👁️</div><div class="kpi-label">Total Views</div><div class="kpi-value" id="kpi-views">—</div><div class="kpi-change">↑ Combined reach</div></div>
+        <div class="kpi-card"><div class="kpi-icon">❤️</div><div class="kpi-label">Avg Likes</div><div class="kpi-value" id="kpi-likes">—</div><div class="kpi-change">↑ Per video</div></div>
+        <div class="kpi-card"><div class="kpi-icon">💬</div><div class="kpi-label">Avg Engagement</div><div class="kpi-value" id="kpi-eng">—</div><div class="kpi-change">↑ Engagement rate</div></div>
+      </div>
+    </section>
+
+    <!-- Top Video -->
+    <section class="top-video-section">
+      <div class="top-video-card" id="topVideoCard" onclick="openTopVideo()">
+        <div class="top-video-thumb">▶️</div>
+        <div class="top-video-info">
+          <div class="top-badge">🔥 #1 TRENDING IN INDIA</div>
+          <div class="top-video-title" id="top-title">Loading...</div>
+          <div class="top-video-stats">
+            <div class="top-stat"><strong id="top-views">—</strong>Views</div>
+            <div class="top-stat"><strong id="top-likes">—</strong>Likes</div>
+            <div class="top-stat"><strong id="top-channel">—</strong>Channel</div>
+          </div>
+        </div>
+        <button class="open-btn">▶ Open on YouTube</button>
+      </div>
+    </section>
+
+    <!-- Sentiment -->
+    <section class="sentiment-section">
+      <div class="sentiment-card" id="sentimentCard">
+        <div class="sentiment-title">💬 Comment Sentiment Analysis</div>
+        <div class="sentiment-bars">
+          <div class="sentiment-row"><div class="sentiment-label">😊 Positive</div><div class="sentiment-bar-wrap"><div class="sentiment-bar bar-positive" data-width="62"></div></div><div class="sentiment-pct">62%</div></div>
+          <div class="sentiment-row"><div class="sentiment-label">😐 Neutral</div><div class="sentiment-bar-wrap"><div class="sentiment-bar bar-neutral" data-width="28"></div></div><div class="sentiment-pct">28%</div></div>
+          <div class="sentiment-row"><div class="sentiment-label">😠 Negative</div><div class="sentiment-bar-wrap"><div class="sentiment-bar bar-negative" data-width="10"></div></div><div class="sentiment-pct">10%</div></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Table -->
+    <section class="table-section">
+      <div class="table-wrap" id="tableWrap">
+        <div class="table-header">
+          <div class="table-title">📋 All Trending Videos</div>
+          <div class="table-count" id="tableCount">— videos</div>
+        </div>
+        <div style="overflow-x:auto;">
+          <table id="videoTable">
+            <thead><tr>
+              <th onclick="sortTable('rank')"># ↕</th>
+              <th onclick="sortTable('title')">Title ↕</th>
+              <th onclick="sortTable('channel')">Channel ↕</th>
+              <th onclick="sortTable('views')">Views ↓</th>
+              <th onclick="sortTable('likes')">Likes ↕</th>
+              <th onclick="sortTable('comments')">Comments ↕</th>
+              <th onclick="sortTable('engagement_rate')">Engagement ↕</th>
+              <th onclick="sortTable('day_of_week')">Day ↕</th>
+            </tr></thead>
+            <tbody id="tableBody"><tr><td colspan="8" class="no-results">Loading data...</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- Charts -->
+    <section class="charts-section">
+      <div class="section-label">Performance Analytics</div>
+      <div class="charts-grid">
+        <div class="chart-card full"><div class="chart-header"><div class="chart-title">🏆 Top 10 Trending Videos by Views</div><div class="chart-badge">TOP 10</div></div><canvas id="top10Chart" height="110"></canvas></div>
+        <div class="chart-card"><div class="chart-header"><div class="chart-title">📅 Engagement Rate by Day</div><div class="chart-badge">WEEKLY</div></div><canvas id="dayChart"></canvas></div>
+        <div class="chart-card"><div class="chart-header"><div class="chart-title">📈 Views vs Likes</div><div class="chart-badge">SCATTER</div></div><canvas id="scatterChart"></canvas></div>
+        <div class="chart-card full"><div class="chart-header"><div class="chart-title">🏅 Top 10 Channels by Views</div><div class="chart-badge">CHANNELS</div></div><canvas id="channelChart" height="110"></canvas></div>
+        <div class="chart-card"><div class="chart-header"><div class="chart-title">⏰ Views by Hour</div><div class="chart-badge">HOURLY</div></div><canvas id="hourChart"></canvas></div>
+        <div class="chart-card"><div class="chart-header"><div class="chart-title">🎬 Videos by Category</div><div class="chart-badge">CATEGORIES</div></div><canvas id="categoryChart"></canvas></div>
+      </div>
+    </section>
+
+    <footer>Built with <span>YouTube Data API v3</span> · <span>Python</span> · <span>Pandas</span> · <span>Chart.js</span> · <span>GSAP</span> · <span>Tailwind CSS</span></footer>
+  </div>
+
+<script>
+  gsap.registerPlugin(ScrollTrigger);
+  const gridColor="rgba(255,255,255,0.05)",tickColor="#555",tickFont={family:'Inter',size:11};
+  Chart.defaults.color=tickColor; Chart.defaults.font=tickFont;
+
+  let tableData=[], filteredData=[], sortKey='views', sortAsc=false, isLight=false;
+  let charts={};
+
+  // ── Helpers ────────────────────────────────────────────────────────────────
+  function formatNum(n){if(n>=1e6)return(n/1e6).toFixed(1)+"M";if(n>=1e3)return(n/1e3).toFixed(1)+"K";return n;}
+
+  function showToast(msg){
+    const t=document.getElementById('toast');
+    t.textContent=msg; t.classList.add('show');
+    setTimeout(()=>t.classList.remove('show'),2800);
+  }
+
+  function animateCounter(el, target, suffix, decimals){
+    let start=null;
+    const step=ts=>{
+      if(!start)start=ts;
+      const p=Math.min((ts-start)/1800,1), e=1-Math.pow(1-p,3);
+      el.textContent=(e*target).toFixed(decimals)+suffix;
+      if(p<1)requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
+  }
+
+  function toggleTheme(){
+    isLight=!isLight;
+    document.body.classList.toggle('light',isLight);
+    document.getElementById('themeBtn').textContent=isLight?'🌙':'☀️';
+    showToast(isLight?'☀️ Light mode':'🌙 Dark mode');
+  }
+
+  function openTopVideo(){
+    showToast('🎬 Opening top trending video...');
+    setTimeout(()=>window.open('https://www.youtube.com/results?search_query='+encodeURIComponent(document.getElementById('top-title').textContent),'_blank'),500);
+  }
+
+  async function softRefresh(){
+    const icon=document.getElementById('refreshIcon');
+    icon.className='spin'; icon.textContent='🔄';
+    showToast('⏳ Fetching fresh YouTube data...');
+    await triggerAndPoll();
+    icon.className=''; icon.textContent='🔄';
+  }
+
+  async function triggerAndPoll(){
+    const banner = document.getElementById('update-banner');
+    try {
+      const res  = await fetch('/api/refresh');
+      const json = await res.json();
+      if(json.error){ showToast('❌ ' + json.error); return; }
+
+      banner.style.display = 'flex';
+      let attempts = 0;
+      await new Promise(resolve => {
+        const poll = setInterval(async () => {
+          attempts++;
+          try {
+            const s = await (await fetch('/api/status')).json();
+            if(!s.running){
+              clearInterval(poll);
+              banner.style.display = 'none';
+              if(s.status === 'done'){
+                const {data, fresh} = await fetchData();
+                lastModified = fresh;
+                populateDashboard(data, false);
+                showToast('✅ Dashboard updated with fresh YouTube data!');
+              } else {
+                showToast('❌ Pipeline failed — check YOUTUBE_API_KEY on Railway.');
+              }
+              resolve();
+            }
+            if(attempts > 60){ clearInterval(poll); banner.style.display='none'; resolve(); }
+          } catch(e){ /* keep polling */ }
+        }, 3000);
+      });
+    } catch(e){
+      banner.style.display='none';
+      showToast('❌ Server unreachable.');
+    }
+  }
+
+  function exportCSV(){
+    const headers=['Rank','Title','Channel','Views','Likes','Comments','Engagement Rate','Day'];
+    const rows=filteredData.map(r=>[r.rank,`"${r.title}"`,`"${r.channel}"`,r.views,r.likes,r.comments,r.engagement_rate+'%',r.day_of_week]);
+    const csv=[headers,...rows].map(r=>r.join(',')).join('\n');
+    const a=document.createElement('a');
+    a.href='data:text/csv;charset=utf-8,'+encodeURIComponent(csv);
+    a.download='youtube_trending.csv'; a.click();
+    showToast('⬇ CSV exported!');
+  }
+
+  // ── Table ──────────────────────────────────────────────────────────────────
+  function renderTable(){
+    const tbody=document.getElementById('tableBody');
+    const maxEng=Math.max(...filteredData.map(r=>r.engagement_rate||0));
+    document.getElementById('tableCount').textContent=filteredData.length+' videos';
+    if(!filteredData.length){tbody.innerHTML='<tr><td colspan="8" class="no-results">No videos found</td></tr>';return;}
+    tbody.innerHTML=filteredData.map(r=>`<tr>
+      <td><span class="rank-badge">#${r.rank}</span></td>
+      <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.title}</td>
+      <td style="color:var(--muted)">${r.channel}</td>
+      <td><strong>${formatNum(r.views)}</strong></td>
+      <td>${formatNum(r.likes)}</td>
+      <td>${formatNum(r.comments)}</td>
+      <td><div class="eng-bar"><div class="eng-mini" style="width:${Math.max(4,(r.engagement_rate/maxEng)*50)}px"></div><span>${r.engagement_rate}%</span></div></td>
+      <td style="color:var(--muted)">${r.day_of_week||'—'}</td>
+    </tr>`).join('');
+  }
+
+  function filterTable(){
+    const q=document.getElementById('searchBox').value.toLowerCase();
+    const day=document.getElementById('dayFilter').value;
+    const key=document.getElementById('sortSelect').value;
+    filteredData=tableData.filter(r=>
+      (r.title.toLowerCase().includes(q)||r.channel.toLowerCase().includes(q))&&
+      (!day||r.day_of_week===day)
+    ).sort((a,b)=>b[key]-a[key]);
+    renderTable();
+  }
+
+  function sortTable(key){
+    if(sortKey===key)sortAsc=!sortAsc;else{sortKey=key;sortAsc=false;}
+    filteredData.sort((a,b)=>{
+      const av=a[key],bv=b[key];
+      if(typeof av==='string')return sortAsc?av.localeCompare(bv):bv.localeCompare(av);
+      return sortAsc?av-bv:bv-av;
+    });
+    renderTable();
+  }
+
+  // ── Charts ─────────────────────────────────────────────────────────────────
+  function buildCharts(data){
+    // destroy old if re-loading
+    Object.values(charts).forEach(c=>c.destroy());
+    charts={};
+
+    charts.top10=new Chart(document.getElementById("top10Chart"),{type:"bar",data:{labels:data.top10_titles,datasets:[{label:"Views",data:data.top10_views,backgroundColor:data.top10_views.map((_,i)=>i===0?"#ff0000":i===1?"#ff3333":`rgba(255,${80+i*15},${80+i*15},${0.75-i*0.04})`),borderRadius:6,borderSkipped:false}]},options:{indexAxis:"y",animation:{duration:1200},plugins:{legend:{display:false},tooltip:{backgroundColor:"rgba(0,0,0,0.85)",callbacks:{label:ctx=>" "+formatNum(ctx.raw)+" views"}}},scales:{x:{ticks:{color:tickColor,font:tickFont,callback:v=>formatNum(v)},grid:{color:gridColor},border:{display:false}},y:{ticks:{color:"#ccc",font:{family:'Inter',size:11}},grid:{display:false},border:{display:false}}}}});
+
+    charts.day=new Chart(document.getElementById("dayChart"),{type:"bar",data:{labels:data.days,datasets:[{label:"Engagement %",data:data.day_engagement,backgroundColor:data.day_engagement.map(v=>v===Math.max(...data.day_engagement)?"#ff0000":"rgba(46,117,182,0.7)"),borderRadius:8,borderSkipped:false}]},options:{animation:{duration:1200,easing:"easeOutBounce"},plugins:{legend:{display:false},tooltip:{backgroundColor:"rgba(0,0,0,0.85)",callbacks:{label:ctx=>" "+ctx.raw+"%"}}},scales:{x:{ticks:{color:tickColor,font:tickFont},grid:{display:false},border:{display:false}},y:{ticks:{color:tickColor,font:tickFont,callback:v=>v+"%"},grid:{color:gridColor},border:{display:false}}}}});
+
+    charts.scatter=new Chart(document.getElementById("scatterChart"),{type:"scatter",data:{datasets:[{label:"Videos",data:data.scatter,backgroundColor:"rgba(0,200,150,0.6)",pointRadius:5,pointHoverRadius:8}]},options:{animation:{duration:1000},plugins:{legend:{display:false},tooltip:{backgroundColor:"rgba(0,0,0,0.85)",callbacks:{label:ctx=>[`Views: ${formatNum(ctx.raw.x)}`,`Likes: ${formatNum(ctx.raw.y)}`]}}},scales:{x:{title:{display:true,text:"Views",color:"#555"},ticks:{color:tickColor,font:tickFont,callback:v=>formatNum(v)},grid:{color:gridColor},border:{display:false}},y:{title:{display:true,text:"Likes",color:"#555"},ticks:{color:tickColor,font:tickFont,callback:v=>formatNum(v)},grid:{color:gridColor},border:{display:false}}}}});
+
+    charts.channel=new Chart(document.getElementById("channelChart"),{type:"bar",data:{labels:data.top_channels,datasets:[{label:"Total Views",data:data.channel_views,backgroundColor:"rgba(245,166,35,0.8)",borderRadius:6,borderSkipped:false}]},options:{indexAxis:"y",animation:{duration:1200},plugins:{legend:{display:false},tooltip:{backgroundColor:"rgba(0,0,0,0.85)",callbacks:{label:ctx=>" "+formatNum(ctx.raw)+" views"}}},scales:{x:{ticks:{color:tickColor,font:tickFont,callback:v=>formatNum(v)},grid:{color:gridColor},border:{display:false}},y:{ticks:{color:"#ccc",font:{family:'Inter',size:11}},grid:{display:false},border:{display:false}}}}});
+
+    charts.hour=new Chart(document.getElementById("hourChart"),{type:"line",data:{labels:data.hours.map(h=>h+":00"),datasets:[{label:"Avg Views",data:data.hour_views,borderColor:"#00c896",backgroundColor:"rgba(0,200,150,0.08)",fill:true,tension:0.4,pointBackgroundColor:"#00c896",pointBorderColor:"#07080f",pointBorderWidth:2,pointRadius:4,pointHoverRadius:7}]},options:{animation:{duration:1400},plugins:{legend:{display:false},tooltip:{backgroundColor:"rgba(0,0,0,0.85)",callbacks:{label:ctx=>" "+formatNum(ctx.raw)+" avg views"}}},scales:{x:{ticks:{color:tickColor,font:tickFont},grid:{color:gridColor},border:{display:false}},y:{ticks:{color:tickColor,font:tickFont,callback:v=>formatNum(v)},grid:{color:gridColor},border:{display:false}}}}});
+
+    charts.cat=new Chart(document.getElementById("categoryChart"),{type:"doughnut",data:{labels:data.categories,datasets:[{data:data.category_counts,backgroundColor:["#ff0000","#2E75B6","#00c896","#f5a623","#9b59b6"],borderColor:"#07080f",borderWidth:3,hoverOffset:8}]},options:{animation:{animateRotate:true,duration:1200},cutout:"65%",plugins:{legend:{position:"right",labels:{color:"#aaa",font:tickFont,padding:16,usePointStyle:true}},tooltip:{backgroundColor:"rgba(0,0,0,0.85)",callbacks:{label:ctx=>` ${ctx.label}: ${ctx.raw} videos`}}}}});
+  }
+
+  // ── GSAP animations ────────────────────────────────────────────────────────
+  function runAnimations(){
+    gsap.timeline()
+      .to(".hero-eyebrow",{opacity:1,y:0,duration:0.6,ease:"power2.out"},0.3)
+      .to(".hero-title",{opacity:1,y:0,duration:0.7,ease:"power2.out"},0.5)
+      .to(".hero-sub",{opacity:1,y:0,duration:0.6,ease:"power2.out"},0.7);
+    gsap.to(".kpi-card",{opacity:1,y:0,duration:0.6,stagger:0.1,ease:"power2.out",delay:0.8});
+    gsap.to(".top-video-card",{opacity:1,y:0,duration:0.6,delay:1.0,ease:"power2.out"});
+    gsap.to(".sentiment-card",{opacity:1,duration:0.5,delay:1.1,onComplete:()=>{
+      document.querySelectorAll('.sentiment-bar').forEach(b=>setTimeout(()=>{b.style.width=b.dataset.width+'%';},200));
+    }});
+    gsap.to(".table-wrap",{opacity:1,duration:0.5,delay:1.2});
+    gsap.to(".section-label",{opacity:1,duration:0.5,delay:1.2});
+    gsap.utils.toArray(".chart-card").forEach((card,i)=>{
+      gsap.to(card,{scrollTrigger:{trigger:card,start:"top 85%"},opacity:1,y:0,duration:0.6,delay:i*0.07,ease:"power2.out"});
+    });
+  }
+
+  // ── Populate all UI from a data object ────────────────────────────────────
+  function populateDashboard(data, animate){
+    const now=new Date();
+    document.getElementById('last-updated').textContent=
+      now.toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"})+" — "+
+      now.toLocaleDateString([],{day:"numeric",month:"short",year:"numeric"});
+
+    document.getElementById('hero-sub').textContent=
+      `${data.total_videos} videos · ${formatNum(data.total_views)} total views · Real-time engagement insights`;
+
+    if(animate){
+      setTimeout(()=>{
+        animateCounter(document.getElementById('kpi-videos'), data.total_videos,    "",  0);
+        animateCounter(document.getElementById('kpi-views'),  data.total_views/1e6, "M", 1);
+        animateCounter(document.getElementById('kpi-likes'),  data.avg_likes/1e3,   "K", 1);
+        animateCounter(document.getElementById('kpi-eng'),    data.avg_engagement,  "%", 2);
+      }, 400);
+    } else {
+      document.getElementById('kpi-videos').textContent = data.total_videos;
+      document.getElementById('kpi-views').textContent  = formatNum(data.total_views);
+      document.getElementById('kpi-likes').textContent  = formatNum(data.avg_likes);
+      document.getElementById('kpi-eng').textContent    = data.avg_engagement+"%";
+    }
+
+    document.getElementById('top-title').textContent   = data.top10_titles[0]||'—';
+    document.getElementById('top-views').textContent   = formatNum(data.top10_views[0]||0);
+    document.getElementById('top-likes').textContent   = formatNum(data.channel_views?data.channel_views[0]:0);
+    document.getElementById('top-channel').textContent = data.top_channels[0]||'—';
+
+    tableData = data.top10_titles.map((title,i)=>({
+      rank: i+1,
+      title: title,
+      channel: data.top_channels[i]||'—',
+      views: data.top10_views[i]||0,
+      likes: data.scatter[i]?data.scatter[i].y:0,
+      comments: 0,
+      engagement_rate: data.day_engagement[i%7]||0,
+      day_of_week: data.days[i%7]||'—'
+    }));
+    filteredData=[...tableData];
+    renderTable();
+    buildCharts(data);
+    if(animate) runAnimations();
+  }
+
+  // ── MAIN: load instantly, then poll for fresh data in background ───────────
+  let lastModified = null;
+
+  async function fetchData(){
+    const res = await fetch("dashboard_data.json?t="+Date.now());
+    if(!res.ok) throw new Error("HTTP "+res.status);
+    const text = await res.text();
+    const data = JSON.parse(text);
+    // Use total_views as a lightweight fingerprint — changes whenever pipeline fetches new data
+    const fresh = String(data.total_views) + String(data.total_videos);
+    return { data, fresh };
+  }
+
+  async function loadDashboard(){
+    // Step 1 — Show cached JSON immediately so there's no blank screen
+    try{
+      const {data, fresh} = await fetchData();
+      lastModified = fresh;
+      populateDashboard(data, true);
+    } catch(err){
+      document.getElementById('hero-sub').textContent = "Could not load data. Check Railway deployment.";
+      console.error(err);
+      return;
+    }
+
+    // Step 2 — Check if pipeline is already running (startup auto-run)
+    // and poll until it finishes to show fresh data automatically
+    try{
+      const s = await (await fetch('/api/status')).json();
+      if(s.running){
+        const banner = document.getElementById('update-banner');
+        banner.style.display = 'flex';
+        let attempts = 0;
+        const poll = setInterval(async () => {
+          attempts++;
+          try{
+            const st = await (await fetch('/api/status')).json();
+            if(!st.running){
+              clearInterval(poll);
+              banner.style.display = 'none';
+              if(st.status === 'done'){
+                const {data, fresh} = await fetchData();
+                if(fresh !== lastModified){
+                  lastModified = fresh;
+                  populateDashboard(data, false);
+                  showToast('✅ Dashboard updated with fresh YouTube data!');
+                }
+              }
+            }
+            if(attempts > 60){ clearInterval(poll); banner.style.display='none'; }
+          } catch(e){ /* ignore */ }
+        }, 3000);
+      }
+    } catch(e){ /* /api/status not available */ }
+  }
+
+  loadDashboard();
+</script>
+</body>
+</html>
