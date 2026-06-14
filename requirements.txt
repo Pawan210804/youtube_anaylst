@@ -4,3 +4,4 @@ python-dotenv
 openpyxl
 matplotlib
 seaborn
+ numpy
