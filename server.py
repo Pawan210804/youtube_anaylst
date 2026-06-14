@@ -4,9 +4,10 @@ import os
 import json
 import threading
 import logging
+import urllib.parse
 from datetime import datetime
 
-PORT         = int(os.environ.get("PORT", 8000))
+PORT          = int(os.environ.get("PORT", 8000))
 REFRESH_TOKEN = os.environ.get("REFRESH_TOKEN", "")   # set this in Railway env vars
 PROJECT_ROOT  = os.path.dirname(os.path.abspath(__file__))
 DASHBOARD_DIR = os.path.join(PROJECT_ROOT, "dashboard")
@@ -145,6 +146,17 @@ def start_pipeline():
 # ── HTTP Handler ───────────────────────────────────────────────────────────────
 class DashboardHandler(http.server.SimpleHTTPRequestHandler):
 
+    def translate_path(self, path):
+        """Serve files from DASHBOARD_DIR, ignoring the process working directory."""
+        # Strip query string and fragment
+        path = path.split("?")[0].split("#")[0]
+        # Decode percent-encoding
+        path = urllib.parse.unquote(path)
+        # Strip leading slash and collapse any '..' traversal attempts
+        path = os.path.normpath(path.lstrip("/"))
+        # Anchor everything to DASHBOARD_DIR
+        return os.path.join(DASHBOARD_DIR, path)
+
     def do_GET(self):
         path = self.path.split("?")[0]
 
@@ -201,7 +213,7 @@ class DashboardHandler(http.server.SimpleHTTPRequestHandler):
 
 
 if __name__ == "__main__":
-    os.chdir(DASHBOARD_DIR)
+    # No os.chdir() — translate_path anchors all file serving to DASHBOARD_DIR explicitly
 
     # Start server FIRST so Railway health check passes immediately
     logging.info(f"Server on port {PORT}")
